@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pyupbit
+pandas
+pandas-ta
+python-dotenv

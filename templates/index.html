@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>업비트 자동매매 대시보드</title>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root {
+  --bg:      #0d1117;
+  --card:    #161b22;
+  --border:  #21262d;
+  --text:    #c9d1d9;
+  --dim:     #8b949e;
+  --green:   #3fb950;
+  --red:     #f85149;
+  --yellow:  #d29922;
+  --blue:    #58a6ff;
+  --orange:  #e3b341;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+/* ── 헤더 ── */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--card);
+  position: sticky; top: 0; z-index: 10;
+}
+.header-left  { display: flex; align-items: center; gap: 12px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+.title { font-size: 17px; font-weight: 700; }
+.badge-ticker {
+  background: #1f6feb; color: #fff;
+  padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+}
+.badge-status {
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+}
+.badge-status.running { background: rgba(63,185,80,.18); color: var(--green); }
+.badge-status.stopped { background: rgba(139,148,158,.18); color: var(--dim); }
+
+.last-update { font-size: 11px; color: var(--dim); }
+.btn {
+  padding: 7px 14px; border: none; border-radius: 6px;
+  font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity .15s;
+}
+.btn:hover { opacity: .75; }
+.btn-start { background: var(--green); color: #0d1117; }
+.btn-stop  { background: var(--red);   color: #fff; }
+
+/* ── 컨텐츠 ── */
+.content { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+
+/* ── 배너 ── */
+.banner {
+  padding: 9px 14px; border-radius: 7px; margin-bottom: 16px;
+  font-size: 13px; font-weight: 600; display: none;
+}
+.banner.error { background: rgba(248,81,73,.12); border: 1px solid var(--red);    color: var(--red); }
+.banner.buy   { background: rgba(63,185,80,.12);  border: 1px solid var(--green); color: var(--green); }
+.banner.sell  { background: rgba(248,81,73,.12);  border: 1px solid var(--red);   color: var(--red); }
+.banner.skip  { background: rgba(210,153,34,.12); border: 1px solid var(--yellow);color: var(--yellow); }
+
+/* ── 카드 ── */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px; margin-bottom: 16px;
+}
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px;
+}
+.card-label {
+  font-size: 10px; color: var(--dim);
+  text-transform: uppercase; letter-spacing: .6px; margin-bottom: 8px;
+}
+.card-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; transition: color .3s; }
+.card-sub   { font-size: 11px; color: var(--dim); margin-top: 4px; }
+
+.green  { color: var(--green)  !important; }
+.red    { color: var(--red)    !important; }
+.yellow { color: var(--yellow) !important; }
+.blue   { color: var(--blue)   !important; }
+.orange { color: var(--orange) !important; }
+
+/* ── 차트 ── */
+.chart-wrap {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;
+}
+.chart-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.chart-title-text { font-size: 12px; color: var(--dim); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--dim); }
+.legend-line { width: 14px; height: 2px; border-radius: 1px; }
+#chart { width: 100%; height: 420px; }
+
+/* ── 포지션 패널 ── */
+.pos-panel {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; display: none;
+}
+.pos-panel-title { font-size: 12px; color: var(--dim); margin-bottom: 12px; }
+.pos-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.pos-item .label { font-size: 10px; color: var(--dim); margin-bottom: 4px; }
+.pos-item .value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ── 거래 로그 ── */
+.log-wrap {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+}
+.log-title { padding: 13px 16px; font-size: 12px; color: var(--dim); border-bottom: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  padding: 9px 14px; text-align: left;
+  font-size: 10px; color: var(--dim); font-weight: 500;
+  text-transform: uppercase; letter-spacing: .5px;
+  background: rgba(255,255,255,.02);
+}
+td { padding: 10px 14px; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+tr:hover td { background: rgba(255,255,255,.025); }
+
+.tag {
+  display: inline-block; padding: 2px 7px;
+  border-radius: 4px; font-size: 10px; font-weight: 700;
+}
+.tag-buy  { background: rgba(63,185,80,.2);  color: var(--green); }
+.tag-sell { background: rgba(248,81,73,.2);  color: var(--red); }
+.tag-skip { background: rgba(210,153,34,.2); color: var(--yellow); }
+
+.empty { padding: 40px; text-align: center; color: var(--dim); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- ── 헤더 ── -->
+<header class="header">
+  <div class="header-left">
+    <span class="title">업비트 자동매매</span>
+    <span class="badge-ticker">KRW-BTC · 5분봉</span>
+    <span class="badge-status stopped" id="status-badge">● 중지됨</span>
+  </div>
+  <div class="header-right">
+    <span class="last-update" id="last-update">갱신: -</span>
+    <button class="btn btn-start" id="btn-start" onclick="startBot()">▶ 시작</button>
+    <button class="btn btn-stop"  id="btn-stop"  onclick="stopBot()" style="display:none">■ 중지</button>
+  </div>
+</header>
+
+<div class="content">
+
+  <!-- 배너 -->
+  <div class="banner error" id="err-banner"></div>
+  <div class="banner"       id="sig-banner"></div>
+
+  <!-- 카드 -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">현재가 (BTC)</div>
+      <div class="card-value" id="c-price" data-prev="0">-</div>
+      <div class="card-sub"   id="c-price-sub">-</div>
+    </div>
+    <div class="card">
+      <div class="card-label">포지션</div>
+      <div class="card-value" id="c-pos">대기</div>
+      <div class="card-sub"   id="c-pos-sub">매수 대기 중</div>
+    </div>
+    <div class="card">
+      <div class="card-label">EMA 7</div>
+      <div class="card-value orange" id="c-ema">-</div>
+      <div class="card-sub"          id="c-ema-sub">-</div>
+    </div>
+    <div class="card">
+      <div class="card-label">볼린저 밴드 (상단)</div>
+      <div class="card-value blue" id="c-bb-upper">-</div>
+      <div class="card-sub"        id="c-bb-sub">상단 / 중심 / 하단</div>
+    </div>
+    <div class="card">
+      <div class="card-label">R:R 비율</div>
+      <div class="card-value" id="c-rr">-</div>
+      <div class="card-sub"   id="c-rr-sub">리스크 / 리워드</div>
+    </div>
+  </div>
+
+  <!-- 차트 -->
+  <div class="chart-wrap">
+    <div class="chart-header">
+      <span class="chart-title-text">캔들차트 + 지표 (최근 60봉)</span>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-line" style="background:#ff9800"></span>EMA 7</span>
+        <span class="legend-item"><span class="legend-line" style="background:rgba(88,166,255,.7)"></span>볼린저 밴드</span>
+        <span class="legend-item"><span style="color:#3fb950;font-size:13px;line-height:1">●</span> SAR Bull</span>
+        <span class="legend-item"><span style="color:#f85149;font-size:13px;line-height:1">●</span> SAR Bear</span>
+      </div>
+    </div>
+    <div id="chart"></div>
+  </div>
+
+  <!-- 포지션 패널 -->
+  <div class="pos-panel" id="pos-panel">
+    <div class="pos-panel-title">현재 포지션</div>
+    <div class="pos-grid">
+      <div class="pos-item">
+        <div class="label">진입가</div>
+        <div class="value green"  id="p-entry">-</div>
+      </div>
+      <div class="pos-item">
+        <div class="label">손절가</div>
+        <div class="value red"    id="p-stop">-</div>
+      </div>
+      <div class="pos-item">
+        <div class="label">목표가</div>
+        <div class="value yellow" id="p-target">-</div>
+      </div>
+      <div class="pos-item">
+        <div class="label">R:R / 리스크 / 리워드</div>
+        <div class="value"        id="p-detail">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 거래 로그 -->
+  <div class="log-wrap">
+    <div class="log-title">거래 로그</div>
+    <div id="log-body"><div class="empty">아직 거래 이력이 없습니다.</div></div>
+  </div>
+
+</div>
+
+<script>
+// ── 차트 초기화 ────────────────────────────────────────────────────────────────
+const chartEl = document.getElementById('chart');
+const chart = LightweightCharts.createChart(chartEl, {
+  layout:      { background: { color: '#161b22' }, textColor: '#8b949e' },
+  grid:        { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+  crosshair:   { mode: 1 },
+  timeScale:   { borderColor: '#21262d', timeVisible: true, secondsVisible: false },
+  rightPriceScale: { borderColor: '#21262d' },
+  width:  chartEl.clientWidth,
+  height: 420,
+});
+
+new ResizeObserver(() => chart.applyOptions({ width: chartEl.clientWidth })).observe(chartEl);
+
+const candleSeries = chart.addCandlestickSeries({
+  upColor: '#3fb950', downColor: '#f85149',
+  borderUpColor: '#3fb950', borderDownColor: '#f85149',
+  wickUpColor:   '#3fb950', wickDownColor:   '#f85149',
+});
+const emaSeries     = chart.addLineSeries({ color: '#ff9800',               lineWidth: 1.5, title: 'EMA7', priceLineVisible: false });
+const bbUpperSeries = chart.addLineSeries({ color: 'rgba(88,166,255,.55)',  lineWidth: 1,   lineStyle: 1,  priceLineVisible: false });
+const bbMidSeries   = chart.addLineSeries({ color: 'rgba(139,148,158,.45)', lineWidth: 1,   lineStyle: 1,  priceLineVisible: false });
+const bbLowerSeries = chart.addLineSeries({ color: 'rgba(88,166,255,.55)',  lineWidth: 1,   lineStyle: 1,  priceLineVisible: false });
+
+let entryLine = null, stopLine = null, targetLine = null;
+
+function setSeriesData(series, candles, key) {
+  series.setData(candles.filter(c => c[key] != null).map(c => ({ time: c.time, value: c[key] })));
+}
+
+async function loadChart() {
+  try {
+    const res = await fetch('/api/chart');
+    const { candles } = await res.json();
+    if (!candles.length) return;
+
+    candleSeries.setData(candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })));
+    setSeriesData(emaSeries,     candles, 'ema_7');
+    setSeriesData(bbUpperSeries, candles, 'bb_upper');
+    setSeriesData(bbMidSeries,   candles, 'bb_mid');
+    setSeriesData(bbLowerSeries, candles, 'bb_lower');
+
+    const markers = [];
+    candles.forEach(c => {
+      if (c.psar_bull != null) markers.push({ time: c.time, position: 'belowBar', color: '#3fb950', shape: 'circle', size: 0.8 });
+      if (c.psar_bear != null) markers.push({ time: c.time, position: 'aboveBar', color: '#f85149', shape: 'circle', size: 0.8 });
+    });
+    markers.sort((a, b) => a.time - b.time);
+    candleSeries.setMarkers(markers);
+
+    chart.timeScale().fitContent();
+  } catch (e) {
+    console.error('차트 로드 실패:', e);
+  }
+}
+
+function updatePriceLines(d) {
+  [entryLine, stopLine, targetLine].forEach(l => { try { if (l) candleSeries.removePriceLine(l); } catch(e){} });
+  entryLine = stopLine = targetLine = null;
+  if (d.entry_price) {
+    entryLine  = candleSeries.createPriceLine({ price: d.entry_price, color: '#3fb950', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '진입' });
+    stopLine   = candleSeries.createPriceLine({ price: d.stop_loss,   color: '#f85149', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '손절' });
+    targetLine = candleSeries.createPriceLine({ price: d.take_profit, color: '#d29922', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '목표' });
+  }
+}
+
+// ── 유틸 ──────────────────────────────────────────────────────────────────────
+const fmt = n => n != null ? Number(n).toLocaleString('ko-KR') : '-';
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function connect() {
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+
+  ws.onmessage = ({ data }) => render(JSON.parse(data));
+  ws.onclose   = ()         => setTimeout(connect, 3000);
+}
+
+let sigTimer = null;
+
+function render(d) {
+  // 헤더 상태
+  const badge = document.getElementById('status-badge');
+  const btnS  = document.getElementById('btn-start');
+  const btnE  = document.getElementById('btn-stop');
+  if (d.running) {
+    badge.className = 'badge-status running'; badge.textContent = '● 실행 중';
+    btnS.style.display = 'none'; btnE.style.display = '';
+  } else {
+    badge.className = 'badge-status stopped'; badge.textContent = '● 중지됨';
+    btnS.style.display = ''; btnE.style.display = 'none';
+  }
+  if (d.last_update) document.getElementById('last-update').textContent = `갱신: ${d.last_update}`;
+
+  // 에러 배너
+  const errEl = document.getElementById('err-banner');
+  errEl.style.display = d.error ? '' : 'none';
+  if (d.error) errEl.textContent = `⚠ 오류: ${d.error}`;
+
+  // 시그널 배너
+  if (d.signal) {
+    const sigEl = document.getElementById('sig-banner');
+    const map   = { BUY: ['buy','🚀 매수 주문 실행'], SELL: ['sell','🛑 매도 주문 실행'], SKIP: ['skip','⏭ R:R 조건 미충족 — 매수 패스'] };
+    const [cls, txt] = map[d.signal] || [];
+    if (cls) {
+      sigEl.className = `banner ${cls}`; sigEl.textContent = txt; sigEl.style.display = '';
+      clearTimeout(sigTimer); sigTimer = setTimeout(() => sigEl.style.display = 'none', 5000);
+    }
+  }
+
+  // 현재가
+  const priceEl = document.getElementById('c-price');
+  const prev    = parseFloat(priceEl.dataset.prev || 0);
+  const cur     = d.current_price || 0;
+  priceEl.textContent = fmt(cur) + '원';
+  priceEl.className   = 'card-value ' + (cur > prev ? 'green' : cur < prev ? 'red' : '');
+  priceEl.dataset.prev = cur;
+  document.getElementById('c-price-sub').textContent = cur > prev ? '▲ 상승' : cur < prev ? '▼ 하락' : '─ 보합';
+
+  // 포지션
+  const posEl = document.getElementById('c-pos');
+  posEl.textContent = d.is_holding ? '보유 중' : '대기';
+  posEl.className   = 'card-value ' + (d.is_holding ? 'green' : '');
+  document.getElementById('c-pos-sub').textContent = d.is_holding ? `진입가: ${fmt(d.entry_price)}원` : '매수 신호 대기 중';
+
+  // EMA 7
+  document.getElementById('c-ema').textContent     = fmt(d.ema_7) + '원';
+  document.getElementById('c-ema-sub').textContent = d.current_price && d.ema_7
+    ? (d.current_price > d.ema_7 ? '▲ 현재가 EMA 위' : '▼ 현재가 EMA 아래') : '-';
+
+  // 볼린저
+  document.getElementById('c-bb-upper').textContent = fmt(d.bb_upper) + '원';
+  document.getElementById('c-bb-sub').textContent   = `${fmt(d.bb_upper)} / ${fmt(d.bb_mid)} / ${fmt(d.bb_lower)}`;
+
+  // R:R
+  const rrEl = document.getElementById('c-rr');
+  rrEl.textContent = d.rr_ratio != null ? d.rr_ratio.toFixed(2) : '-';
+  rrEl.className   = 'card-value ' + (d.rr_ratio >= 1.5 ? 'green' : d.rr_ratio ? 'red' : '');
+  document.getElementById('c-rr-sub').textContent = d.risk_pct != null
+    ? `↓${d.risk_pct}%  /  ↑${d.reward_pct}%` : '리스크 / 리워드';
+
+  // 포지션 패널
+  const panel = document.getElementById('pos-panel');
+  if (d.is_holding && d.entry_price) {
+    panel.style.display = '';
+    document.getElementById('p-entry').textContent  = fmt(d.entry_price) + '원';
+    document.getElementById('p-stop').textContent   = fmt(d.stop_loss)   + '원';
+    document.getElementById('p-target').textContent = fmt(d.take_profit) + '원';
+    document.getElementById('p-detail').textContent = `R:R ${d.rr_ratio}  |  손절 ${d.risk_pct}%  |  수익 ${d.reward_pct}%`;
+  } else {
+    panel.style.display = 'none';
+  }
+
+  // 차트 가격선
+  updatePriceLines(d);
+
+  // 거래 로그
+  const logBody = document.getElementById('log-body');
+  if (!d.trade_log?.length) {
+    logBody.innerHTML = '<div class="empty">아직 거래 이력이 없습니다.</div>';
+  } else {
+    logBody.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>시각</th><th>액션</th><th>체결가</th>
+          <th>사유</th><th>R:R</th><th>리스크</th><th>리워드</th>
+        </tr></thead>
+        <tbody>
+          ${d.trade_log.map(t => `
+            <tr>
+              <td style="color:var(--dim)">${t.time}</td>
+              <td><span class="tag tag-${t.action.toLowerCase()}">${t.action}</span></td>
+              <td>${t.price}원</td>
+              <td style="color:var(--dim)">${t.reason}</td>
+              <td>${t.rr}</td>
+              <td class="${t.risk !== '-' ? 'red' : ''}">${t.risk}</td>
+              <td class="${t.reward !== '-' ? 'green' : ''}">${t.reward}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+}
+
+// ── 봇 제어 ───────────────────────────────────────────────────────────────────
+async function startBot() { await fetch('/bot/start', { method: 'POST' }); }
+async function stopBot()  { await fetch('/bot/stop',  { method: 'POST' }); }
+
+// ── 초기화 ────────────────────────────────────────────────────────────────────
+loadChart();
+setInterval(loadChart, 5 * 60 * 1000);
+connect();
+</script>
+</body>
+</html>
